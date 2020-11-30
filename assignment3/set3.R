@@ -5,7 +5,7 @@ library('strucchange')
 library('sandwich')
 library(AER)
 
-gs = read.csv('./gasoline.csv',sep=",")
+gs = read.csv('../assignment3/gasoline.csv',sep=",")
 gasoline = read.csv('./gasoline.csv',sep=",")
 
 sctest(per_g~year+y+pg+pnc+puc, data = gs_log,
@@ -30,9 +30,19 @@ chow_t = sctest(per_g~year+y+pg+pnc+puc, data = gs_log,
 # q1.b
 gs_log$dum <- ifelse(gs_log$year>=1974, 1, 0)
 model4 = lm(per_g~year+y+pg+pnc+puc+dum,  data=gs_log)
-RSS4 = sum(resid(model4)^2)
-F_vb = ((RSS4-RSS1-RSS2)/6)/((RSS2+RSS1)/(36-12))
-p_vb = pf(F_vb, 6, 24, lower.tail=F)
+model5b = lm(per_g~year+y+pg+pnc+puc+dum,  subset=(year<=1973), data=gs_log)
+model6b = lm(per_g~year+y+pg+pnc+puc+dum,  subset=(year>1973), data=gs_log)
+RSSb4 = sum(resid(model4)^2)
+RSSb5 = sum(resid(model5b)^2)
+RSSb6 = sum(resid(model6b)^2)
+unresdf = summary(model5b)$df[1]+summary(model6b)$df[1] - summary(model4)$df[1]
+resdf = nobs(model4) - summary(model5b)$df[1]-summary(model6b)$df[1]
+
+F_vb = ((RSS4-RSSb5-RSSb6)/unresdf)/((RSSb5+RSSb6)/resdf)
+p_vb = pf(F_vb, 5, 26, lower.tail=F)
+
+chow_t = sctest(per_g~year+y+pg+pnc+puc+dum, data =gs_log,
+                type = "Chow", point = 14)
 
 # q1.c
 gs_log$dum <- ifelse(gs_log$year>=1974, 1, 0)
