@@ -1,0 +1,188 @@
+---
+title: "R Notebook for econometrcs exam"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+
+```{r}
+# generally used packages:
+library(sandwich)
+library(ggplot2)
+library(lmtest)
+library(zoo)
+library(corrplot)
+library(car)
+library(ggfortify)
+library(plm)
+library(readstata13)
+library(fastDummies)
+library(AER)
+
+```
+
+```{r}
+# clean and change work dir:
+rm(list = ls())
+setwd("Desktop/courses_term1/econometrics/problem_sets/assignment1/")
+```
+
+
+```{r}
+# read csv
+data = read.csv(path)
+
+# read dta
+data = read.dta13(path)
+
+# log transformation
+data_log = log(data)
+
+
+# corraltion metrics
+cor_mat <- as.matrix(cor(data_frame, use = 'na.or.complete')) 
+corrplot(cor_mat, type = 'upper', tl.pos = 'lt', tl.cex = 0.6, tl.col = 'black')
+
+## add dummy variable
+paneldf_bank_dummy <- dummy_cols(paneldf,select_columns='entity',remove_first_dummy = TRUE)
+
+```
+
+
+```{r}
+# OLS:
+reg_name <- lm(depvar~x1+x2+...+x4, data=df)
+reg_name <- lm(df$depvar~df$x1+df$x2+...+df$x4)
+
+#info of model:
+summary(reg_name)
+
+# confident interval:
+Confint(reg_name)
+
+# predict: cvalues is the datafram of out of samples
+x = data.frame('HP'=c(1, 2), 'Year'=(1,2), 'Kilometers'=(1, 2), 'gas_die'=(1, 2))
+predict(reg_name, x)
+
+# roubust std error
+rob.se1 <- vcovHC(reg_name, type='HC0')
+coeftest(modeld2, rob.se1)
+
+# elasticity:
+elasticity_pg = modela$coefficients['pg'] * mean(gs$pg)/mean(gs$g_pop)
+
+```
+
+
+
+```{r}
+## ---------------------------non-linearity test:---------------------------##
+
+resettest(reg_name, power=2, type="regressor")
+resettest(reg_name, power=2, type="regressor")
+
+## ---------------------------commonly used test:---------------------------##
+
+H10 = c('Year=1200')
+linearHypothesis(modeld2, H10)
+
+H20 = c('CC=0', 'ABS=0')
+linearHypothesis(modeld1, H20)
+
+H30 = c('CD=gas_die')
+linearHypothesis(modeld1, H30)
+
+H40 = c('20000*Kilometers=4*Year')
+linearHypothesis(modeld2, H40)
+```
+
+
+```{r}
+## ---------------------------heteroskedasticity test---------------------------##
+
+## ---------------------------White’s test for heteroskedasticity:
+bptest(modeld2, ~HP+Year+Kilometers+gas_die, data=cp)
+bptest(modeld2, ~fitted(modeld2)+I(fitted(modeld2)^2))
+
+## ---------------------------Breusch-Pagan test heteroskedasticity for specific variable
+bptest(modeld2, ~cp$Year)
+bptest(modeld2, ~cp$HP)
+bptest(modeld2, ~cp$HP+cp$Year)
+```
+
+
+```{r}
+## ---------------------------chow test------------------------------------------##
+gs_log$dum <- ifelse(gs_log$year>=1974, 1, 0)
+model_unrestrict = lm(per_g~year+y+pg+pnc+puc+dum,  data=gs_log)
+model_restrict1 = lm(per_g~year+y+pg+pnc+puc+dum,  subset=(year<=1973), data=gs_log)
+model_restrict2 = lm(per_g~year+y+pg+pnc+puc+dum,  subset=(year>1973), data=gs_log)
+RSSb4 = sum(resid(model_unrestrict)^2)
+RSSb5 = sum(resid(model_restrict1)^2)
+RSSb6 = sum(resid(model_restrict2)^2)
+unresdf = summary(model_restrict1)$df[1]+summary(model_restrict2)$df[1] - summary(model_unrestrict)$df[1]
+resdf = nobs(model_unrestrict) - summary(model_restrict1)$df[1]-summary(model_restrict2)$df[1]
+F_vb = ((RSS4-RSSb5-RSSb6)/unresdf)/((RSSb5+RSSb6)/resdf)
+p_vb = pf(F_vb, 5, 26, lower.tail=F)
+```
+
+```{r}
+## ---------------------------instrument variable-------------------------------##
+library(AER)
+model2f = ivreg(lnQ~lnP+ice+seas1+seas2+seas3
+             +seas4+seas5+seas6+seas7+seas8+
+              seas9+seas10+seas11+seas12|cartel+ice+seas1+seas2+seas3
+             +seas4+seas5+seas6+seas7+seas8+
+               seas9+seas10+seas11+seas12,  data=jec)
+summary(model2f, diagnostics=TRUE)
+```
+
+
+
+```{r}
+## ---------------------------panel data-------------------------------##
+## pooled OLS with dummy variables:
+
+roe_bank_dummy <- plm(formula_b1, data = paneldf_bank_dummy, model = c("pooling"), index = c("entity","quarter"))
+
+## random effect estimator
+pd_roe_rand <- plm(ret ~ l_ret + l_btm + l_roe, data = paneldf, model = c("random"))
+
+## fixed effect estimator
+pd_roe_fixed <- plm(ret ~ l_ret + l_btm + l_roe, data = paneldf, model = c("within"))
+
+## or group-means (between) regressions:
+pd_roe_fixed <- plm(ret ~ l_ret + l_btm + l_roe, data = paneldf, model = c("between"))
+
+
+## Breusch-Pagan test for random effects
+plmtest(panelmodel, effect = c("individual"), type = c( "bp"))
+## hausman test
+phtest(femodel, remodel)
+```
+
+
+```{r}
+## ---------------------------format long test and dummy -------------------------------##
+formula_b1 = 'ret ~ l_ret + l_btm + l_roe'
+i=1
+while (i < 868) {
+  i = i + 1
+  formula_b1 <- paste(formula_b1, '+entity_', i, sep = "")
+  }
+roe_bank_dummy <- plm(formula_b1, data = paneldf_bank_dummy, model = c("pooling"), index = c("entity","quarter"))
+## test for the bank dummy
+Hb10 = c()
+i=1
+while (i < 868) {
+  i = i + 1
+  test_i <- paste('entity_', i, '=0',sep = "")
+  Hb10 <- append(Hb10, test_i)
+}
+test_resb1 = linearHypothesis(roe_bank_dummy, Hb10)
+test_resb1
+```
+
